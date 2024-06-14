@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:for_django_api/view.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:excel/excel.dart';
 import 'dart:typed_data';
-import 'package:fl_chart/fl_chart.dart';
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
+import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
+import 'package:charts_flutter/flutter.dart' as charts;
 
 void main() {
   runApp(const MyApp());
@@ -61,14 +64,18 @@ class _MyHomePageState extends State<MyHomePage> {
 }
 
 
-class ExcelGraphScreen extends StatefulWidget {
+
+
+
+
+
+class GraphWidget extends StatefulWidget {
   @override
-  _ExcelGraphScreenState createState() => _ExcelGraphScreenState();
+  _GraphWidgetState createState() => _GraphWidgetState();
 }
 
-class _ExcelGraphScreenState extends State<ExcelGraphScreen> {
-  List<FlSpot> incomeData = [];
-  List<FlSpot> expensesData = [];
+class _GraphWidgetState extends State<GraphWidget> {
+  List<IncomeExpenseData> data = [];
 
   Future<void> pickAndReadExcelFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles(
@@ -78,78 +85,65 @@ class _ExcelGraphScreenState extends State<ExcelGraphScreen> {
 
     if (result != null) {
       Uint8List? fileBytes = result.files.single.bytes;
-      var excel = Excel.decodeBytes(fileBytes!);
 
-      List<FlSpot> income = [];
-      List<FlSpot> expenses = [];
+      if (fileBytes != null) {
+        final workbook = xlsio.Workbook.load(fileBytes);
+        final sheet = workbook.worksheets[0];
 
-      var sheet = excel.tables[excel.tables.keys.first];
-      for (var rowIndex = 1; rowIndex < sheet!.maxRows; rowIndex++) {
-        var row = sheet.row(rowIndex);
+        for (int row = 1; row <= sheet.getRowCount(); row++) {
+          String month = sheet.getRangeByIndex(row, 1).text;
+          int incomeValue = sheet.getRangeByIndex(row, 2).number.toInt();
+          int expensesValue = sheet.getRangeByIndex(row, 3).number.toInt();
 
-        double month = rowIndex.toDouble();
-        double incomeValue = double.tryParse(row[1]?.toString().replaceAll(RegExp(r'[^\d.]'), '') ?? '') ?? 0.0;
-        double expensesValue = double.tryParse(row[2]?.toString().replaceAll(RegExp(r'[^\d.]'), '') ?? '') ?? 0.0;
+          data.add(IncomeExpenseData(month, incomeValue, expensesValue));
+        }
 
-        income.add(FlSpot(month, incomeValue));
-        expenses.add(FlSpot(month, expensesValue));
+        workbook.dispose();
+
+        setState(() {});
       }
-
-      setState(() {
-        incomeData = income;
-        expensesData = expenses;
-      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Excel Graph Viewer'),
-      ),
-      body: Column(
-        children: [
-          ElevatedButton(
-            onPressed: pickAndReadExcelFile,
-            child: Text('Pick Excel File'),
+      body: (data.isNotEmpty)
+          ? charts.BarChart(
+        [
+          charts.Series<IncomeExpenseData, String>(
+            id: 'Income',
+            colorFn: (_, __) => charts.MaterialPalette.blue.shadeDefault,
+            domainFn: (IncomeExpenseData data, _) => data.month,
+            measureFn: (IncomeExpenseData data, _) => data.income,
+            data: data,
           ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: LineChart(
-                LineChartData(
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: incomeData,
-                      isCurved: true,
-                      colors: [Colors.green],
-                      barWidth: 2,
-                      isStrokeCapRound: true,
-                      belowBarData: BarAreaData(show: false),
-                      dotData: FlDotData(show: false),
-                    ),
-                    LineChartBarData(
-                      spots: expensesData,
-                      isCurved: true,
-                      colors: [Colors.red],
-                      barWidth: 2,
-                      isStrokeCapRound: true,
-                      belowBarData: BarAreaData(show: false),
-                      dotData: FlDotData(show: false),
-                    ),
-                  ],
-                  titlesData: FlTitlesData(
-                    bottomTitles: SideTitles(showTitles: true),
-                    leftTitles: SideTitles(showTitles: true),
-                  ),
-                  borderData: FlBorderData(show: true),
-                ),
-              ),
-            ),
+          charts.Series<IncomeExpenseData, String>(
+            id: 'Expenses',
+            colorFn: (_, __) => charts.MaterialPalette.red.shadeDefault,
+            domainFn: (IncomeExpenseData data, _) => data.month,
+            measureFn: (IncomeExpenseData data, _) => data.expenses,
+            data: data,
           ),
         ],
+        animate: true,
+        barGroupingType: charts.BarGroupingType.grouped,
+      )
+          : Center(child: Text('No data')),
+      floatingActionButton: FloatingActionButton(
+        onPressed: pickAndReadExcelFile,
+        tooltip: 'Pick Excel File',
+        child: Icon(Icons.file_upload),
       ),
     );
   }
 }
+
+class IncomeExpenseData {
+  final String month;
+  final int income;
+  final int expenses;
+
+  IncomeExpenseData(this.month, this.income, this.expenses);
+}
+

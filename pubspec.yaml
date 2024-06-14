@@ -32,8 +32,9 @@ dependencies:
     sdk: flutter
   http: ^0.13.3
   file_picker: ^4.3.8
-  excel: ^2.0.6
-  fl_chart: ^0.40.0
+  syncfusion_flutter_xlsio:
+  graphs: ^2.3.1
+  charts_flutter:
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
